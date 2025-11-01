@@ -1,0 +1,53 @@
+# requirements.txt for Agentic RAG Insurance Policy Debate Agents
+
+# === Core LLM + RAG Frameworks ===
+langchain
+langchain-community
+langchain-huggingface
+
+# === Vector Databases ===
+faiss-cpu
+# Optional cloud vector DBs (uncomment if needed):
+# pinecone-client
+# weaviate-client
+
+# === Embeddings ===
+sentence-transformers
+
+# === Hybrid Retrieval ===
+rank-bm25
+
+# === Web Scraping ===
+requests
+beautifulsoup4
+duckduckgo-search
+# Optional advanced scrapers:
+# newspaper3k
+# playwright
+
+# === Document Processing ===
+PyPDF2
+python-docx
+
+# === Utilities ===
+python-dotenv
+pandas
+numpy
+
+# === Web UI ===
+streamlit
+
+# === LLM (Local) ===
+ollama
+langchain-ollama
+
+# === Optional: LLM Providers (uncomment as needed) ===
+# openai
+# anthropic
+
+# === Optional: Advanced Agent Framework ===
+# llama-index
+# autogen
+
+# === Optional: Async Support ===
+# httpx
