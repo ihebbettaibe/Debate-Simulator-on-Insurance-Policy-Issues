@@ -22,6 +22,18 @@ class HybridRetriever:
     Results are merged and re-ranked based on scores.
     """
     
+    # Query expansion dictionary
+    QUERY_EXPANSIONS = {
+        'cyber insurance': ['cybersecurity insurance', 'data breach coverage', 'cyber risk insurance'],
+        'climate risk': ['climate change', 'environmental risk', 'natural disasters', 'weather risk'],
+        'insurtech': ['insurance technology', 'digital insurance', 'AI in insurance', 'fintech insurance'],
+        'reinsurance': ['reinsurer', 're-insurance', 'risk transfer'],
+        'parametric': ['parametric insurance', 'index-based insurance', 'parametric trigger'],
+        'underwriting': ['risk assessment', 'policy pricing', 'risk evaluation'],
+        'claims': ['claims processing', 'claims management', 'loss adjustment'],
+        'actuarial': ['actuarial science', 'risk modeling', 'statistical analysis']
+    }
+    
     def __init__(self, vector_db_path: str, alpha: float = 0.5):
         """
         Initialize hybrid retriever.
@@ -39,6 +51,30 @@ class HybridRetriever:
         
         self._load_vectorstore()
         self._initialize_bm25()
+    
+    def expand_query(self, query: str) -> str:
+        """
+        Expand query with synonyms and related terms for better retrieval.
+        
+        Args:
+            query: Original search query
+        
+        Returns:
+            Expanded query string with related terms
+        """
+        expanded_terms = [query]
+        query_lower = query.lower()
+        
+        # Check for matching terms and add expansions
+        for key, synonyms in self.QUERY_EXPANSIONS.items():
+            if key in query_lower:
+                # Add up to 2 most relevant synonyms to avoid query bloat
+                expanded_terms.extend(synonyms[:2])
+        
+        # Join with OR logic for better matching
+        expanded_query = " ".join(expanded_terms)
+        
+        return expanded_query
     
     def _load_vectorstore(self):
         """Load FAISS vector store."""
@@ -157,7 +193,7 @@ class HybridRetriever:
         
         return [(self.documents[i], scores[i]) for i in top_indices]
     
-    def hybrid_search(self, query: str, k: int = 5, semantic_k: int = 10, bm25_k: int = 10) -> List[Document]:
+    def hybrid_search(self, query: str, k: int = 5, semantic_k: int = 10, bm25_k: int = 10, use_expansion: bool = True) -> List[Document]:
         """
         Perform hybrid search combining semantic and keyword-based retrieval.
         
@@ -166,13 +202,17 @@ class HybridRetriever:
             k: Number of final results to return
             semantic_k: Number of results from semantic search
             bm25_k: Number of results from BM25 search
+            use_expansion: Whether to use query expansion
         
         Returns:
             List of Documents ranked by hybrid score
         """
+        # Expand query if enabled
+        search_query = self.expand_query(query) if use_expansion else query
+        
         # Get results from both methods
-        semantic_results = self._semantic_search(query, k=semantic_k)
-        bm25_results = self._bm25_search(query, k=bm25_k)
+        semantic_results = self._semantic_search(search_query, k=semantic_k)
+        bm25_results = self._bm25_search(search_query, k=bm25_k)
         
         # Normalize scores to 0-1 range for each method
         semantic_results = self._normalize_scores(semantic_results)
@@ -207,7 +247,20 @@ class HybridRetriever:
             reverse=True
         )[:k]
         
-        return [item['doc'] for item in ranked_results]
+        # Extract documents and add quality-based boosting
+        results = []
+        for item in ranked_results:
+            doc = item['doc']
+            score = item['score']
+            
+            # Boost score based on quality metadata
+            quality_score = doc.metadata.get('quality_score', 0.5)
+            boosted_score = score * (0.7 + 0.3 * quality_score)  # 70% original + 30% quality
+            
+            doc.metadata['hybrid_score'] = boosted_score
+            results.append(doc)
+        
+        return results
     
     def _normalize_scores(self, results: List[tuple]) -> List[tuple]:
         """Normalize scores to 0-1 range."""

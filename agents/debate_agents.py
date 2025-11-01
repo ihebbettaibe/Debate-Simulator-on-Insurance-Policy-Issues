@@ -4,6 +4,8 @@ Each agent analyzes insurance policies and trends from a unique standpoint.
 """
 import os
 import sys
+import time
+import psutil
 from typing import List, Dict, Any, Optional
 from enum import Enum
 
@@ -59,6 +61,17 @@ class DebateAgent:
         self.llm = llm
         self.conversation_history = []
         self.evidence_used = []
+        
+        # Performance metrics
+        self.metrics = {
+            'response_times': [],
+            'token_counts': [],
+            'memory_usage': [],
+            'total_responses': 0,
+            'avg_response_time': 0.0,
+            'total_tokens': 0,
+            'model_used': None
+        }
     
     def get_system_prompt(self) -> str:
         """Generate system prompt based on agent's role."""
@@ -110,7 +123,7 @@ Your responsibilities:
             k: Number of documents to retrieve
         
         Returns:
-            List of relevant documents
+            List of relevant documents with scores
         """
         if not self.retriever:
             print(f"⚠️ {self.name}: No retriever available")
@@ -118,6 +131,14 @@ Your responsibilities:
         
         try:
             docs = self.retriever.search(query, k=k)
+            
+            # Add relevance scores and confidence levels
+            for i, doc in enumerate(docs):
+                # Calculate relevance score (higher rank = lower score)
+                doc.metadata['relevance_score'] = round(1.0 - (i * 0.1), 2)
+                doc.metadata['confidence'] = 'High' if i < 2 else 'Medium' if i < 4 else 'Low'
+                doc.metadata['rank'] = i + 1
+            
             self.evidence_used.extend(docs)
             return docs
         except Exception as e:
@@ -125,15 +146,20 @@ Your responsibilities:
             return []
     
     def format_context(self, docs: List[Any]) -> str:
-        """Format retrieved documents as context string."""
+        """Format retrieved documents as context string with metadata."""
         if not docs:
             return "No relevant documents found."
         
         context_parts = []
         for i, doc in enumerate(docs, 1):
             source = doc.metadata.get('source', 'Unknown')
+            relevance = doc.metadata.get('relevance_score', 'N/A')
+            confidence = doc.metadata.get('confidence', 'N/A')
             content = doc.page_content[:500]  # Limit length
-            context_parts.append(f"[Source {i}: {source}]\n{content}\n")
+            
+            context_parts.append(
+                f"[Source {i}: {source}] [Relevance: {relevance}] [Confidence: {confidence}]\n{content}\n"
+            )
         
         return "\n---\n".join(context_parts)
     
@@ -149,12 +175,47 @@ Your responsibilities:
         Returns:
             Agent's response (simulated if no LLM)
         """
+        # Track performance metrics
+        start_time = time.time()
+        start_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+        
         # If LLM is available, use it
         if self.llm:
-            return self._generate_with_llm(topic, context, opponent_arguments or [])
+            response = self._generate_with_llm(topic, context, opponent_arguments or [])
+        else:
+            # Otherwise, return simulated response based on role
+            response = self._generate_simulated_response(topic, context, opponent_arguments or [])
         
-        # Otherwise, return simulated response based on role
-        return self._generate_simulated_response(topic, context, opponent_arguments or [])
+        # Calculate metrics
+        end_time = time.time()
+        end_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+        response_time = end_time - start_time
+        memory_delta = end_memory - start_memory
+        token_count = len(response.split())  # Rough token estimate
+        
+        # Update metrics
+        self.metrics['response_times'].append(response_time)
+        self.metrics['token_counts'].append(token_count)
+        self.metrics['memory_usage'].append(memory_delta)
+        self.metrics['total_responses'] += 1
+        self.metrics['total_tokens'] += token_count
+        self.metrics['avg_response_time'] = sum(self.metrics['response_times']) / len(self.metrics['response_times'])
+        
+        return response
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get performance metrics for this agent."""
+        return {
+            'name': self.name,
+            'role': self.role.value,
+            'total_responses': self.metrics['total_responses'],
+            'avg_response_time': round(self.metrics['avg_response_time'], 2),
+            'total_tokens': self.metrics['total_tokens'],
+            'avg_tokens_per_response': round(self.metrics['total_tokens'] / max(1, self.metrics['total_responses']), 0),
+            'peak_memory_mb': round(max(self.metrics['memory_usage']) if self.metrics['memory_usage'] else 0, 2),
+            'evidence_documents_used': len(self.evidence_used),
+            'model': self.metrics.get('model_used', 'Simulated')
+        }
     
     def _generate_simulated_response(self, topic: str, context: str, opponent_arguments: List[str]) -> str:
         """Generate a simulated response without LLM."""
@@ -373,6 +434,20 @@ def create_debate_agents(
         )
     ]
     
+    # Track which models are being used
+    if use_specialized_models and use_ollama:
+        agents[0].metrics['model_used'] = AGENT_MODELS.get('PRO', DEFAULT_OLLAMA_MODEL)
+        agents[1].metrics['model_used'] = AGENT_MODELS.get('CON', DEFAULT_OLLAMA_MODEL)
+    elif model and use_ollama:
+        for agent in agents:
+            agent.metrics['model_used'] = model
+    elif use_ollama:
+        for agent in agents:
+            agent.metrics['model_used'] = DEFAULT_OLLAMA_MODEL
+    else:
+        for agent in agents:
+            agent.metrics['model_used'] = 'Simulated'
+    
     return agents
 
 
@@ -418,6 +493,16 @@ def create_debate_agents_with_judge(
         retriever=retriever,
         llm=judge_llm
     )
+    
+    # Track judge model
+    if use_specialized_models and use_ollama:
+        judge.metrics['model_used'] = AGENT_MODELS.get('JUDGE', DEFAULT_OLLAMA_MODEL)
+    elif model and use_ollama:
+        judge.metrics['model_used'] = model
+    elif use_ollama:
+        judge.metrics['model_used'] = DEFAULT_OLLAMA_MODEL
+    else:
+        judge.metrics['model_used'] = 'Simulated'
     
     agents.append(judge)
     return agents

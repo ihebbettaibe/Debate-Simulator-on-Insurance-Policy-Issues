@@ -1,0 +1,105 @@
+{
+  "indexed_files": {
+    "2016.01-Allianz-HomeBooklet-72SCH-0116-KD-New-Business-wef-01.2016-until-19.10.20.pdf": {
+      "hash": "f6b6627998ec9cb32a4f4a0351d87d4a",
+      "indexed_at": "2025-11-01T21:11:38.008744",
+      "chunks": 131
+    },
+    "2025-05-27-global-insurance-report.pdf": {
+      "hash": "cdcd02d0615afbb93ed93d3500299aaa",
+      "indexed_at": "2025-11-01T21:11:39.146996",
+      "chunks": 99
+    },
+    "2025.03-Allianz-Allianz-Home-IHR-Policy-Document-wef-20.03.2025.pdf": {
+      "hash": "c18468a46f683c5e449d843c40df7845",
+      "indexed_at": "2025-11-01T21:11:40.149341",
+      "chunks": 168
+    },
+    "2025.03-Allianz-Home-Summary_of_Changes_IHR_wef-20.03.2025.pdf": {
+      "hash": "c8528b09b58e25f46c0e7d52c30d6816",
+      "indexed_at": "2025-11-01T21:11:40.384831",
+      "chunks": 25
+    },
+    "2025.07-Allianz-Broker-Motor-Insurance-Policy-wef-01.07.2025.pdf": {
+      "hash": "1d481f0ef6bdc13924516355328fe7ff",
+      "indexed_at": "2025-11-01T21:11:40.886310",
+      "chunks": 107
+    },
+    "Allianz-Commercial-Vehicle-policy-184-MOT-10.19-KD.pdf": {
+      "hash": "0e1684aff99b224f2908aab33c04aab7",
+      "indexed_at": "2025-11-01T21:11:41.900591",
+      "chunks": 52
+    },
+    "ML Quizes.pdf": {
+      "hash": "e77601bb54e056ca2a016351db850472",
+      "indexed_at": "2025-11-01T21:11:41.935417",
+      "chunks": 8
+    },
+    "thsp.pdf": {
+      "hash": "e6168d2ec84058bd6e2fd0b1b2f78c03",
+      "indexed_at": "2025-11-01T21:11:42.031796",
+      "chunks": 6
+    },
+    "insurance trends 2025 sitemunichre.com\\Media-release-Baden-Baden-2025.pdf": {
+      "hash": "11e204728553b2ed002fcace5fb46a51",
+      "indexed_at": "2025-11-01T21:11:42.188668",
+      "chunks": 11
+    },
+    "insurance trends 2025 sitemunichre.com\\Media-release-Baden-Baden-2025.txt": {
+      "hash": "d6ea2dbf26a98fbea498df8bd18f29db",
+      "indexed_at": "2025-11-01T21:11:42.189727",
+      "chunks": 11
+    },
+    "insurance trends 2025 sitemunichre.com\\MunichRe-Presentation-Monte-Carlo-2025.pdf": {
+      "hash": "69698f5ce68a9c81f7644154f25b098f",
+      "indexed_at": "2025-11-01T21:11:42.850653",
+      "chunks": 22
+    },
+    "insurance trends 2025 sitemunichre.com\\MunichRe-Presentation-Monte-Carlo-2025.txt": {
+      "hash": "855438c54773923b61152f12991a8dfe",
+      "indexed_at": "2025-11-01T21:11:42.851705",
+      "chunks": 14
+    }
+  },
+  "last_update": "2025-11-01T21:12:04.511884",
+  "total_documents": 658,
+  "web_sources": [
+    {
+      "query": "cyber insuarnce 2025",
+      "sites": null,
+      "scraped_at": "2025-11-01T20:54:35.031867",
+      "doc_count": 5
+    },
+    {
+      "query": "insurance industry trends 2025",
+      "sites": null,
+      "scraped_at": "2025-11-01T21:11:43.950260",
+      "doc_count": 5
+    },
+    {
+      "query": "cyber insurance market analysis",
+      "sites": null,
+      "scraped_at": "2025-11-01T21:11:45.517494",
+      "doc_count": 5
+    },
+    {
+      "query": "climate risk insurance developments",
+      "sites": null,
+      "scraped_at": "2025-11-01T21:11:46.031223",
+      "doc_count": 5
+    },
+    {
+      "query": "InsurTech innovations 2025",
+      "sites": null,
+      "scraped_at": "2025-11-01T21:11:47.636763",
+      "doc_count": 5
+    },
+    {
+      "query": "reinsurance market outlook",
+      "sites": null,
+      "scraped_at": "2025-11-01T21:11:48.168173",
+      "doc_count": 5
+    }
+  ],
+  "version": "1.0"
+}

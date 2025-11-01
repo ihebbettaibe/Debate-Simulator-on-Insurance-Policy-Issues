@@ -33,9 +33,13 @@ python-docx
 python-dotenv
 pandas
 numpy
+scikit-learn
 
 # === Web UI ===
 streamlit
+
+# === Performance Monitoring ===
+psutil
 
 # === LLM (Local) ===
 ollama

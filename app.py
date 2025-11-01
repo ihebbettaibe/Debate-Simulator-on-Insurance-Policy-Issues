@@ -231,7 +231,7 @@ def load_retriever():
         return None
 
 # Main interface
-tab1, tab2, tab3 = st.tabs(["New Debate", "History", "Info"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["New Debate", "Performance Metrics", "Knowledge Base", "History", "Info"])
 
 with tab1:
     st.markdown("## Start a New Debate")
@@ -389,11 +389,25 @@ with tab1:
                         
                         st.markdown(response)
                         
-                        # Show evidence info
+                        # Show evidence info with enhanced metadata
                         if use_rag and retrieved_docs:
                             with st.expander(f"Evidence ({len(retrieved_docs)} documents)", expanded=False):
                                 for i, doc in enumerate(retrieved_docs, 1):
-                                    st.markdown(f"**Source {i}:** {doc.metadata.get('source', 'Unknown')}")
+                                    # Enhanced source citations
+                                    source = doc.metadata.get('source', 'Unknown')
+                                    relevance = doc.metadata.get('relevance_score', 'N/A')
+                                    confidence = doc.metadata.get('confidence', 'N/A')
+                                    rank = doc.metadata.get('rank', i)
+                                    
+                                    # Color code confidence levels
+                                    conf_color = {
+                                        'High': '🟢',
+                                        'Medium': '🟡',
+                                        'Low': '🟠'
+                                    }.get(confidence, '⚪')
+                                    
+                                    st.markdown(f"**Source {rank}:** {source}")
+                                    st.markdown(f"{conf_color} Confidence: {confidence} | Relevance Score: {relevance}")
                                     st.caption(doc.page_content[:200] + "...")
                                     st.markdown("---")
                     
@@ -473,8 +487,333 @@ with tab1:
                     if use_rag and retriever:
                         total_docs = sum(len(a.evidence_used) for a in agents)
                         st.metric("Evidence", total_docs)
+                
+                # Store agents in session for metrics tab
+                st.session_state.current_agents = agents
 
 with tab2:
+    st.markdown("## Performance Metrics Dashboard")
+    
+    if 'current_agents' in st.session_state and st.session_state.current_agents:
+        agents = st.session_state.current_agents
+        
+        st.markdown("### Real-time Performance Overview")
+        
+        # Overall metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        total_responses = sum(a.metrics['total_responses'] for a in agents)
+        total_tokens = sum(a.metrics['total_tokens'] for a in agents)
+        avg_response_time = sum(a.metrics['avg_response_time'] for a in agents if a.metrics['avg_response_time'] > 0) / max(1, len([a for a in agents if a.metrics['avg_response_time'] > 0]))
+        total_evidence = sum(len(a.evidence_used) for a in agents)
+        
+        with col1:
+            st.metric("Total Responses", total_responses)
+        with col2:
+            st.metric("Total Tokens", f"{total_tokens:,}")
+        with col3:
+            st.metric("Avg Response Time", f"{avg_response_time:.2f}s")
+        with col4:
+            st.metric("Evidence Retrieved", total_evidence)
+        
+        st.markdown("---")
+        
+        # Per-agent metrics
+        st.markdown("### Agent Performance Breakdown")
+        
+        for agent in agents:
+            metrics = agent.get_metrics()
+            
+            with st.expander(f"{agent.name} ({agent.role.value.upper()})", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown("**Response Metrics**")
+                    st.metric("Responses Generated", metrics['total_responses'])
+                    st.metric("Avg Response Time", f"{metrics['avg_response_time']:.2f}s")
+                    st.metric("Peak Memory", f"{metrics['peak_memory_mb']:.2f} MB")
+                
+                with col2:
+                    st.markdown("**Token Usage**")
+                    st.metric("Total Tokens", f"{metrics['total_tokens']:,}")
+                    st.metric("Avg Tokens/Response", f"{metrics['avg_tokens_per_response']:.0f}")
+                    if use_llm and use_specialized:
+                        model_name = AGENT_MODELS.get(agent.role.value.upper(), 'N/A')
+                        st.metric("Model Used", model_name)
+                
+                with col3:
+                    st.markdown("**Evidence Usage**")
+                    st.metric("Documents Retrieved", metrics['evidence_documents_used'])
+                    if metrics['evidence_documents_used'] > 0:
+                        st.metric("Docs per Response", f"{metrics['evidence_documents_used'] / max(1, metrics['total_responses']):.1f}")
+                
+                # Response time chart
+                if agent.metrics['response_times']:
+                    st.markdown("**Response Time Trend**")
+                    import pandas as pd
+                    df = pd.DataFrame({
+                        'Response #': range(1, len(agent.metrics['response_times']) + 1),
+                        'Time (s)': agent.metrics['response_times']
+                    })
+                    st.line_chart(df.set_index('Response #'))
+        
+        st.markdown("---")
+        
+        # Knowledge Base Management
+        st.markdown("### Knowledge Base Management")
+        
+        kb_path = os.path.join(project_root, "kb_docs")
+        vector_db_path = os.path.join(project_root, "vectorstore", "faiss_index")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Current Knowledge Base**")
+            if os.path.exists(kb_path):
+                file_count = sum(len(files) for _, _, files in os.walk(kb_path))
+                st.metric("Documents", file_count)
+                
+                # List document sources
+                with st.expander("View Document Sources"):
+                    for root, dirs, files in os.walk(kb_path):
+                        for file in files:
+                            if file.endswith(('.txt', '.pdf', '.md')):
+                                rel_path = os.path.relpath(os.path.join(root, file), kb_path)
+                                st.text(f"📄 {rel_path}")
+            else:
+                st.warning("Knowledge base folder not found")
+        
+        with col2:
+            st.markdown("**Vector Database Status**")
+            if os.path.exists(vector_db_path):
+                st.success("Vector DB: Ready")
+                
+                # Show index info
+                try:
+                    import faiss
+                    index_file = os.path.join(vector_db_path, "index.faiss")
+                    if os.path.exists(index_file):
+                        index = faiss.read_index(index_file)
+                        st.metric("Vectors Indexed", index.ntotal)
+                        st.metric("Dimension", index.d)
+                except Exception as e:
+                    st.caption(f"Could not read index details: {e}")
+            else:
+                st.warning("Vector DB not found")
+                st.caption("Run: python build_kb.py")
+        
+    else:
+        st.info("No active debate. Start a debate in the 'New Debate' tab to see performance metrics.")
+
+with tab3:
+    st.markdown("## 📚 Knowledge Base Management")
+    
+    # Import manager
+    from retriever.dynamic_kb_manager import DynamicKBManager
+    
+    # Initialize manager
+    @st.cache_resource
+    def get_kb_manager():
+        return DynamicKBManager(
+            kb_folder="./kb_docs",
+            vector_db_path="./vectorstore/faiss_index",
+            auto_update_hours=24
+        )
+    
+    manager = get_kb_manager()
+    
+    # Get stats
+    stats = manager.get_stats()
+    
+    # Overview metrics
+    st.markdown("### 📊 Overview")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Files", stats['total_files'])
+    with col2:
+        st.metric("Document Chunks", stats['total_documents'])
+    with col3:
+        st.metric("Web Sources", stats['web_sources'])
+    with col4:
+        if stats['needs_update']:
+            st.metric("Status", "⚠️ Update Needed")
+        else:
+            st.metric("Status", "✅ Up to Date")
+    
+    st.markdown("---")
+    
+    # Management actions
+    st.markdown("### 🔧 Management Actions")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### 📁 Static Documents")
+        
+        # Show indexed files
+        with st.expander("View Indexed Files", expanded=False):
+            if stats['total_files'] > 0:
+                for filepath, info in manager.metadata['indexed_files'].items():
+                    st.text(f"📄 {filepath}")
+                    st.caption(f"   Chunks: {info['chunks']} | Indexed: {info['indexed_at'][:10]}")
+            else:
+                st.info("No files indexed yet")
+        
+        # Scan for new files
+        if st.button("🔍 Scan for New Documents"):
+            with st.spinner("Scanning..."):
+                new_files = manager.scan_new_documents()
+                if new_files:
+                    st.success(f"Found {len(new_files)} new/modified files!")
+                    for file in new_files:
+                        st.text(f"  • {os.path.basename(file)}")
+                else:
+                    st.info("No new files found")
+        
+        # Full rebuild
+        if st.button("🔄 Full Rebuild (Static Only)"):
+            with st.spinner("Rebuilding knowledge base..."):
+                try:
+                    manager.full_rebuild(include_web=False)
+                    st.success("✅ Knowledge base rebuilt successfully!")
+                    st.cache_resource.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+    
+    with col2:
+        st.markdown("#### 🌐 Web Sources")
+        
+        # Show web sources
+        with st.expander("View Web Sources", expanded=False):
+            if stats['web_sources'] > 0:
+                for source in manager.metadata['web_sources']:
+                    st.text(f"🔍 {source['query']}")
+                    st.caption(f"   Documents: {source['doc_count']} | Scraped: {source['scraped_at'][:10]}")
+            else:
+                st.info("No web sources scraped yet")
+        
+        # Web scraping options
+        web_query = st.text_input("Search Query", placeholder="e.g., cyber insurance trends 2025")
+        
+        col2a, col2b = st.columns(2)
+        with col2a:
+            if st.button("🌐 Scrape & Add"):
+                if web_query:
+                    with st.spinner(f"Scraping web for: {web_query}"):
+                        try:
+                            manager.incremental_update(
+                                include_web=True,
+                                web_queries=[web_query]
+                            )
+                            st.success("✅ Web content added!")
+                            st.cache_resource.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error: {e}")
+                else:
+                    st.warning("Please enter a search query")
+        
+        with col2b:
+            if st.button("🗑️ Clear Web Sources"):
+                manager.clear_web_sources()
+                st.success("✅ Web sources cleared from metadata")
+                st.info("💡 Run full rebuild to update vector store")
+    
+    st.markdown("---")
+    
+    # Advanced options
+    with st.expander("⚙️ Advanced Options", expanded=False):
+        st.markdown("#### Incremental Update")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            include_web_update = st.checkbox("Include web scraping", value=False)
+        with col2:
+            auto_queries = st.checkbox("Use default queries", value=True)
+        
+        if include_web_update and not auto_queries:
+            custom_queries = st.text_area(
+                "Custom Queries (one per line)",
+                placeholder="insurance trends 2025\ncyber insurance\nclimate risk"
+            )
+        
+        if st.button("🔄 Run Incremental Update"):
+            with st.spinner("Updating knowledge base..."):
+                try:
+                    queries = None
+                    if include_web_update:
+                        if auto_queries:
+                            queries = [
+                                "insurance industry trends 2025",
+                                "cyber insurance developments",
+                                "InsurTech innovations"
+                            ]
+                        elif custom_queries:
+                            queries = [q.strip() for q in custom_queries.split('\n') if q.strip()]
+                    
+                    result = manager.incremental_update(
+                        include_web=include_web_update,
+                        web_queries=queries
+                    )
+                    
+                    if result:
+                        st.success("✅ Knowledge base updated successfully!")
+                        st.cache_resource.clear()
+                        st.rerun()
+                    else:
+                        st.info("✅ Knowledge base is already up to date!")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+        
+        st.markdown("---")
+        
+        st.markdown("#### Database Information")
+        if stats['vectorstore_exists']:
+            st.success(f"📍 Location: {stats['kb_folder']}")
+            st.info(f"🕐 Last Update: {stats['last_update']}")
+            
+            # File type breakdown
+            if stats['file_types']:
+                st.markdown("**File Types:**")
+                for ext, count in stats['file_types'].items():
+                    st.text(f"  {ext}: {count} files")
+        else:
+            st.warning("Vector store not initialized. Run a full rebuild.")
+    
+    st.markdown("---")
+    
+    # Document growth over time chart
+    import pandas as pd
+    import altair as alt
+
+    # Create timeline from metadata
+    updates = []
+    for source_info in manager.metadata.get('web_sources', []):
+        updates.append({
+            'date': source_info['scraped_at'][:10],
+            'docs': source_info['doc_count'],
+            'type': 'web'
+        })
+
+    for file, info in manager.metadata.get('indexed_files', {}).items():
+        updates.append({
+            'date': info['indexed_at'][:10],
+            'docs': info['chunks'],
+            'type': 'static'
+        })
+
+    df = pd.DataFrame(updates)
+    chart = alt.Chart(df).mark_line().encode(
+        x='date:T',
+        y='sum(docs):Q',
+        color='type:N'
+    ).properties(title='Knowledge Base Growth')
+
+    st.altair_chart(chart, use_container_width=True)
+
+with tab4:
     st.markdown("## Debate History")
     
     if st.session_state.debate_history:
@@ -504,11 +843,13 @@ with tab2:
     else:
         st.info("No debates yet. Go to the New Debate tab to start.")
 
-with tab3:
-    st.markdown("## ℹ️ System Information")
+with tab5:
+    st.markdown("## System Information")
     
-    # System status cards
-    st.markdown("### 📊 System Status")
+    # System status
+    st.markdown("### System Status")
+    
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         # Check vector DB
